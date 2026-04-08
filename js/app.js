@@ -45,6 +45,10 @@ function escapeForFilename(str) {
    YouTube IFrame API – real video duration
    ========================================================= */
 
+const YT_API_LOAD_TIMEOUT_MS = 8000;
+const PLAYER_READY_TIMEOUT_MS = 10000;
+const DURATION_POLL_MAX = 25; /* 25 × 200 ms = 5 s max polling */
+
 let _ytApiReady = false;
 const _ytApiPromise = new Promise((resolve) => {
   const prev = window.onYouTubeIframeAPIReady;
@@ -69,7 +73,7 @@ async function getVideoDuration(videoId) {
   try {
     await Promise.race([
       _ytApiPromise,
-      new Promise((_, rej) => setTimeout(() => rej(new Error('YT API timeout')), 8000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('YT API timeout')), YT_API_LOAD_TIMEOUT_MS)),
     ]);
   } catch {
     return DEFAULT_DURATION;
@@ -86,12 +90,12 @@ async function getVideoDuration(videoId) {
       if (done) return;
       done = true;
       clearTimeout(tmr);
-      try { player.destroy(); } catch (_) { /* ignore */ }
+      try { player.destroy(); } catch (_) { /* safe to ignore: player may already be gone */ }
       el.remove();
       resolve(dur);
     };
 
-    const tmr = setTimeout(() => finish(DEFAULT_DURATION), 10000);
+    const tmr = setTimeout(() => finish(DEFAULT_DURATION), PLAYER_READY_TIMEOUT_MS);
 
     const player = new YT.Player(el, {
       videoId,
@@ -105,7 +109,7 @@ async function getVideoDuration(videoId) {
           const poll = () => {
             const d = ev.target.getDuration();
             if (d > 0) return finish(d);
-            if (++attempts > 25) return finish(DEFAULT_DURATION);
+            if (++attempts > DURATION_POLL_MAX) return finish(DEFAULT_DURATION);
             setTimeout(poll, 200);
           };
           poll();
@@ -121,6 +125,10 @@ async function getVideoDuration(videoId) {
 /* =========================================================
    Cobalt Authentication (Turnstile + JWT)
    ========================================================= */
+
+const DEFAULT_JWT_LIFETIME_S = 1800;  /* 30 min fallback if server omits exp */
+const JWT_EXPIRY_BUFFER_MS   = 30000; /* refresh 30 s before actual expiry */
+const AUTH_TIMEOUT_MS         = 30000; /* max wait for Turnstile + JWT exchange */
 
 const _cobaltAuth = {
   sitekey: null,
@@ -192,7 +200,7 @@ async function _onTurnstileDone(token) {
     if (d.token) {
       _cobaltAuth.jwt = d.token;
       /* exp is lifetime in seconds; subtract 30 s buffer */
-      _cobaltAuth.expiry = Date.now() + ((d.exp || 1800) * 1000) - 30000;
+      _cobaltAuth.expiry = Date.now() + ((d.exp || DEFAULT_JWT_LIFETIME_S) * 1000) - JWT_EXPIRY_BUFFER_MS;
     }
   } catch (e) {
     console.warn('[YouDow] JWT exchange failed:', e);
@@ -215,7 +223,7 @@ async function ensureCobaltJwt() {
 
   /* Refresh: reset Turnstile to trigger a new challenge */
   _cobaltAuth.jwt = null;
-  if (_cobaltAuth.widgetId != null && typeof turnstile !== 'undefined') {
+  if (_cobaltAuth.widgetId !== null && typeof turnstile !== 'undefined') {
     turnstile.reset(_cobaltAuth.widgetId);
   }
 
@@ -229,7 +237,7 @@ async function ensureCobaltJwt() {
       reject(new Error(
         'Authentification impossible (délai dépassé). Veuillez actualiser la page et réessayer.'
       ));
-    }, 30000);
+    }, AUTH_TIMEOUT_MS);
 
     _cobaltAuth._resolve = () => {
       clearTimeout(tmr);
