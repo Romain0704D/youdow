@@ -42,6 +42,207 @@ function escapeForFilename(str) {
 }
 
 /* =========================================================
+   YouTube IFrame API – real video duration
+   ========================================================= */
+
+let _ytApiReady = false;
+const _ytApiPromise = new Promise((resolve) => {
+  const prev = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = () => {
+    _ytApiReady = true;
+    if (prev) prev();
+    resolve();
+  };
+});
+
+(function loadYTApi() {
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+})();
+
+/**
+ * Use a hidden YouTube player to retrieve the video's real duration.
+ * Falls back to DEFAULT_DURATION on error or timeout.
+ */
+async function getVideoDuration(videoId) {
+  try {
+    await Promise.race([
+      _ytApiPromise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('YT API timeout')), 8000)),
+    ]);
+  } catch {
+    return DEFAULT_DURATION;
+  }
+
+  return new Promise((resolve) => {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden';
+    document.body.appendChild(el);
+
+    let done = false;
+    const finish = (dur) => {
+      if (done) return;
+      done = true;
+      clearTimeout(tmr);
+      try { player.destroy(); } catch (_) { /* ignore */ }
+      el.remove();
+      resolve(dur);
+    };
+
+    const tmr = setTimeout(() => finish(DEFAULT_DURATION), 10000);
+
+    const player = new YT.Player(el, {
+      videoId,
+      width: 1,
+      height: 1,
+      playerVars: { autoplay: 0, controls: 0 },
+      events: {
+        onReady(ev) {
+          /* getDuration() may return 0 until metadata loads; poll briefly */
+          let attempts = 0;
+          const poll = () => {
+            const d = ev.target.getDuration();
+            if (d > 0) return finish(d);
+            if (++attempts > 25) return finish(DEFAULT_DURATION);
+            setTimeout(poll, 200);
+          };
+          poll();
+        },
+        onError() {
+          finish(DEFAULT_DURATION);
+        },
+      },
+    });
+  });
+}
+
+/* =========================================================
+   Cobalt Authentication (Turnstile + JWT)
+   ========================================================= */
+
+const _cobaltAuth = {
+  sitekey: null,
+  jwt: null,
+  expiry: 0,
+  widgetId: null,
+  _resolve: null,
+};
+
+/** Fetch Cobalt instance info and set up Turnstile if required. */
+async function initCobaltAuth() {
+  try {
+    const r = await fetch(COBALT_API, { headers: { Accept: 'application/json' } });
+    if (!r.ok) return;
+    const d = await r.json();
+    const sk = d.cobalt && d.cobalt.turnstileSitekey;
+    if (!sk) return;
+
+    _cobaltAuth.sitekey = sk;
+
+    /* Load Turnstile script dynamically */
+    await new Promise((res, rej) => {
+      window.__onTurnstileReady = res;
+      const s = document.createElement('script');
+      s.src =
+        'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__onTurnstileReady&render=explicit';
+      s.async = true;
+      s.onerror = rej;
+      document.head.appendChild(s);
+    });
+
+    _renderTurnstile();
+  } catch (e) {
+    console.warn('[YouDow] Cobalt auth init:', e);
+  }
+}
+
+function _renderTurnstile() {
+  const el = document.getElementById('turnstile-container');
+  if (!el || typeof turnstile === 'undefined') return;
+
+  _cobaltAuth.widgetId = turnstile.render(el, {
+    sitekey: _cobaltAuth.sitekey,
+    theme: 'dark',
+    size: 'invisible',
+    callback: _onTurnstileDone,
+    'error-callback': () => {
+      console.warn('[YouDow] Turnstile challenge error');
+    },
+    'expired-callback': () => {
+      _cobaltAuth.jwt = null;
+      _cobaltAuth.expiry = 0;
+    },
+  });
+}
+
+async function _onTurnstileDone(token) {
+  try {
+    const r = await fetch(COBALT_API + 'session', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'cf-turnstile-response': token,
+      },
+    });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    if (d.token) {
+      _cobaltAuth.jwt = d.token;
+      /* exp is lifetime in seconds; subtract 30 s buffer */
+      _cobaltAuth.expiry = Date.now() + ((d.exp || 1800) * 1000) - 30000;
+    }
+  } catch (e) {
+    console.warn('[YouDow] JWT exchange failed:', e);
+  }
+
+  /* Unblock any caller waiting on ensureCobaltJwt() */
+  if (_cobaltAuth._resolve) {
+    _cobaltAuth._resolve();
+    _cobaltAuth._resolve = null;
+  }
+}
+
+/**
+ * Return a valid JWT for Cobalt, refreshing via Turnstile if needed.
+ * Returns null if the instance does not require authentication.
+ */
+async function ensureCobaltJwt() {
+  if (!_cobaltAuth.sitekey) return null;
+  if (_cobaltAuth.jwt && Date.now() < _cobaltAuth.expiry) return _cobaltAuth.jwt;
+
+  /* Refresh: reset Turnstile to trigger a new challenge */
+  _cobaltAuth.jwt = null;
+  if (_cobaltAuth.widgetId != null && typeof turnstile !== 'undefined') {
+    turnstile.reset(_cobaltAuth.widgetId);
+  }
+
+  return new Promise((resolve, reject) => {
+    if (_cobaltAuth.jwt && Date.now() < _cobaltAuth.expiry) {
+      return resolve(_cobaltAuth.jwt);
+    }
+
+    const tmr = setTimeout(() => {
+      _cobaltAuth._resolve = null;
+      reject(new Error(
+        'Authentification impossible (délai dépassé). Veuillez actualiser la page et réessayer.'
+      ));
+    }, 30000);
+
+    _cobaltAuth._resolve = () => {
+      clearTimeout(tmr);
+      if (_cobaltAuth.jwt) {
+        resolve(_cobaltAuth.jwt);
+      } else {
+        reject(new Error('Authentification échouée. Veuillez réessayer.'));
+      }
+    };
+  });
+}
+
+/* =========================================================
    DOWNLOAD + TRIM (single page)
    ========================================================= */
 
@@ -238,11 +439,18 @@ async function fetchVideoInfo(rawUrl) {
     playBtn.style.display = '';
     videoEmbed.src = '';
 
-    /* Reset trim UI with default duration */
+    /* Reset trim UI with default duration, then fetch real duration */
     resetTrimUI(DEFAULT_DURATION);
 
     videoCard.classList.remove('hidden');
     videoCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    /* Fetch real video duration in the background via YT IFrame API */
+    getVideoDuration(vid).then((dur) => {
+      if (dur > 0 && dur !== DEFAULT_DURATION) {
+        resetTrimUI(dur);
+      }
+    });
   } catch (err) {
     setUrlError(`Erreur : ${err.message}`);
   } finally {
@@ -353,25 +561,38 @@ downloadBtn.addEventListener('click', async () => {
       body.videoQuality = state.quality;
     }
 
+    /* Build headers – include JWT auth if Cobalt requires it */
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      const jwt = await ensureCobaltJwt();
+      if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+    } catch (authErr) {
+      throw new Error(authErr.message);
+    }
+
     const res = await fetch(COBALT_API, {
       method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`Serveur cobalt a répondu ${res.status}${errText ? ': ' + errText : ''}`);
-    }
+    /* Parse response – Cobalt returns JSON for both success and error */
+    const data = await res.json().catch(() => null);
 
-    const data = await res.json();
-
-    if (data.status === 'error') {
+    if (!res.ok || !data || data.status === 'error') {
+      const code = (data && data.error && data.error.code) || '';
+      if (code.includes('auth')) {
+        /* Auth error → invalidate cached JWT so next attempt refreshes */
+        _cobaltAuth.jwt = null;
+        _cobaltAuth.expiry = 0;
+        throw new Error('Session expirée. Veuillez réessayer.');
+      }
       throw new Error(
-        data.error?.code || data.text || 'Le serveur de téléchargement a renvoyé une erreur.'
+        code || 'Le serveur de téléchargement a renvoyé une erreur.'
       );
     }
 
@@ -478,3 +699,8 @@ downloadBtn.addEventListener('click', async () => {
     downloadBtn.disabled = false;
   }
 });
+
+/* =========================================================
+   Bootstrap: start Cobalt auth in the background
+   ========================================================= */
+initCobaltAuth();
