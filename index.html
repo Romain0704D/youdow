@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouDow – Téléchargeur YouTube</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    crossorigin="anonymous"
+  />
+</head>
+<body>
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <i class="fab fa-youtube logo-icon"></i>
+        <span>YouDow</span>
+      </div>
+      <nav class="header-links">
+        <a href="#videoCard" class="header-link">
+          <i class="fas fa-download"></i> Télécharger
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- ========================================================= -->
+    <!-- SINGLE PAGE FLOW                                           -->
+    <!-- ========================================================= -->
+
+      <!-- Hero -->
+      <div class="hero">
+        <h1 class="hero-title">Téléchargez vos vidéos YouTube</h1>
+        <p class="hero-subtitle">
+          MP4&nbsp;·&nbsp;MP3&nbsp;·&nbsp;WebM&nbsp;·&nbsp;OGG&nbsp;·&nbsp;WAV&nbsp;·&nbsp;Opus
+          — choisissez votre format, découpez un passage et téléchargez en un clic.
+        </p>
+
+        <div class="search-box">
+          <input
+            type="url"
+            id="urlInput"
+            class="url-input"
+            placeholder="Collez l'URL YouTube ici…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="fetchBtn" class="btn btn-primary">
+            <i class="fas fa-search"></i>
+            <span>Analyser</span>
+          </button>
+        </div>
+        <p id="urlError" class="error-msg" aria-live="polite"></p>
+      </div>
+
+      <!-- Video card (hidden until a video is fetched) -->
+      <div id="videoCard" class="video-card hidden">
+        <div class="video-card-inner">
+          <!-- Thumbnail / embed -->
+          <div class="thumb-wrap">
+            <img id="thumbnail" src="" alt="Miniature" class="thumbnail" />
+            <button
+              id="playBtn"
+              class="play-btn"
+              title="Regarder la vidéo"
+              aria-label="Lire la vidéo"
+            >
+              <i class="fas fa-play"></i>
+            </button>
+            <div id="embedWrap" class="embed-wrap hidden">
+              <iframe
+                id="videoEmbed"
+                src=""
+                frameborder="0"
+                allow="autoplay; encrypted-media"
+                allowfullscreen
+              ></iframe>
+            </div>
+          </div>
+
+          <!-- Info + download options -->
+          <div class="info-panel">
+            <h2 id="videoTitle" class="video-title"></h2>
+            <p id="videoAuthor" class="video-author"></p>
+
+            <!-- Format grid -->
+            <div class="format-section">
+              <p class="section-label">Vidéo</p>
+              <div class="format-grid" id="formatGridVideo">
+                <label class="fmt active" data-mode="auto" data-quality="1080" data-ext="mp4">
+                  <input type="radio" name="fmt" value="mp4-1080" checked />
+                  <i class="fas fa-film"></i>
+                  <span>MP4</span><small>1080p</small>
+                </label>
+                <label class="fmt" data-mode="auto" data-quality="720" data-ext="mp4">
+                  <input type="radio" name="fmt" value="mp4-720" />
+                  <i class="fas fa-film"></i>
+                  <span>MP4</span><small>720p</small>
+                </label>
+                <label class="fmt" data-mode="auto" data-quality="480" data-ext="mp4">
+                  <input type="radio" name="fmt" value="mp4-480" />
+                  <i class="fas fa-film"></i>
+                  <span>MP4</span><small>480p</small>
+                </label>
+                <label class="fmt" data-mode="auto" data-quality="360" data-ext="mp4">
+                  <input type="radio" name="fmt" value="mp4-360" />
+                  <i class="fas fa-film"></i>
+                  <span>MP4</span><small>360p</small>
+                </label>
+                <label class="fmt" data-mode="auto" data-quality="max" data-ext="webm">
+                  <input type="radio" name="fmt" value="webm" />
+                  <i class="fas fa-film"></i>
+                  <span>WebM</span><small>Max</small>
+                </label>
+              </div>
+
+              <p class="section-label" style="margin-top:14px">Audio uniquement</p>
+              <div class="format-grid" id="formatGridAudio">
+                <label class="fmt" data-mode="audio" data-quality="max" data-ext="mp3">
+                  <input type="radio" name="fmt" value="mp3" />
+                  <i class="fas fa-music"></i>
+                  <span>MP3</span><small>320 kbps</small>
+                </label>
+                <label class="fmt" data-mode="audio" data-quality="max" data-ext="ogg">
+                  <input type="radio" name="fmt" value="ogg" />
+                  <i class="fas fa-music"></i>
+                  <span>OGG</span><small>Max</small>
+                </label>
+                <label class="fmt" data-mode="audio" data-quality="max" data-ext="opus">
+                  <input type="radio" name="fmt" value="opus" />
+                  <i class="fas fa-music"></i>
+                  <span>Opus</span><small>Max</small>
+                </label>
+                <label class="fmt" data-mode="audio" data-quality="max" data-ext="wav">
+                  <input type="radio" name="fmt" value="wav" />
+                  <i class="fas fa-music"></i>
+                  <span>WAV</span><small>Max</small>
+                </label>
+              </div>
+            </div>
+
+            <!-- ===== Trim section (collapsible) ===== -->
+            <div class="trim-section">
+              <label class="trim-toggle" for="trimToggle">
+                <input type="checkbox" id="trimToggle" />
+                <span class="trim-toggle-slider"></span>
+                <span class="trim-toggle-label">
+                  <i class="fas fa-cut"></i> Découper un passage
+                </span>
+              </label>
+
+              <div id="trimControls" class="trim-controls hidden">
+                <div class="range-section">
+                  <div class="range-labels">
+                    <span>Début</span>
+                    <span id="rangeDisplay" class="range-display">0:00 → 0:00</span>
+                    <span>Fin</span>
+                  </div>
+                  <div class="dual-range" id="dualRange">
+                    <div class="track">
+                      <div id="trackFill" class="track-fill"></div>
+                    </div>
+                    <input
+                      type="range"
+                      id="sliderStart"
+                      class="thumb thumb-start"
+                      min="0"
+                      max="1000"
+                      value="0"
+                    />
+                    <input
+                      type="range"
+                      id="sliderEnd"
+                      class="thumb thumb-end"
+                      min="0"
+                      max="1000"
+                      value="1000"
+                    />
+                  </div>
+
+                  <div class="time-inputs">
+                    <div class="time-field">
+                      <label for="startInput">Début</label>
+                      <input
+                        type="text"
+                        id="startInput"
+                        class="time-input"
+                        value="0:00"
+                        placeholder="0:00"
+                      />
+                    </div>
+                    <div class="time-field" style="text-align:right">
+                      <label for="endInput">Fin</label>
+                      <input
+                        type="text"
+                        id="endInput"
+                        class="time-input"
+                        value="0:00"
+                        placeholder="0:00"
+                      />
+                    </div>
+                  </div>
+                  <p id="cropSelInfo" class="crop-sel-info">Sélection : --</p>
+                </div>
+
+                <p class="trim-hint">
+                  <i class="fas fa-info-circle"></i>
+                  La vidéo sera téléchargée puis découpée dans votre navigateur via FFmpeg.wasm.
+                </p>
+              </div>
+            </div>
+
+            <!-- Download button -->
+            <button id="downloadBtn" class="btn btn-download">
+              <i class="fas fa-download"></i>
+              <span>Télécharger</span>
+            </button>
+
+            <!-- Progress -->
+            <div id="dlProgress" class="progress-wrap hidden">
+              <div class="progress-bar">
+                <div id="dlBar" class="progress-fill" style="width:0%"></div>
+              </div>
+              <p id="dlStatus" class="progress-label">Préparation…</p>
+            </div>
+
+            <p id="dlMsg" class="status-msg" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+  </main>
+
+  <!-- ===== ABOUT / FEATURES STRIP ===== -->
+  <section class="features-strip">
+    <div class="features-inner">
+      <div class="feature">
+        <i class="fas fa-film"></i>
+        <h3>Multi-format</h3>
+        <p>MP4, MP3, WebM, OGG, WAV, Opus…</p>
+      </div>
+      <div class="feature">
+        <i class="fas fa-cut"></i>
+        <h3>Découpe précise</h3>
+        <p>Trimez exactement le passage voulu sans logiciel.</p>
+      </div>
+      <div class="feature">
+        <i class="fas fa-lock"></i>
+        <h3>100 % privé</h3>
+        <p>La découpe se fait dans votre navigateur, rien n'est envoyé.</p>
+      </div>
+      <div class="feature">
+        <i class="fas fa-bolt"></i>
+        <h3>Rapide</h3>
+        <p>Téléchargement direct à vitesse maximale.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <p>
+      YouDow &copy; 2024 &mdash; Fait avec
+      <i class="fas fa-heart" style="color:#e53e3e"></i> pour les amateurs de vidéos
+    </p>
+    <p class="disclaimer">
+      Usage personnel uniquement. Respectez les droits d'auteur.
+    </p>
+  </footer>
+
+  <!-- FFmpeg.wasm (single-threaded, no SharedArrayBuffer required) -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
