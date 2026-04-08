@@ -67,12 +67,12 @@ a { color: var(--red); text-decoration: none; }
   color: var(--red);
 }
 
-/* Tabs */
-.tabs {
+/* Tabs → now header links */
+.header-links {
   display: flex;
   gap: 4px;
 }
-.tab {
+.header-link {
   background: transparent;
   border: none;
   color: var(--muted);
@@ -86,13 +86,9 @@ a { color: var(--red); text-decoration: none; }
   display: flex;
   align-items: center;
   gap: 7px;
+  text-decoration: none;
 }
-.tab:hover { background: var(--surface2); color: var(--text); }
-.tab.active {
-  background: var(--red);
-  color: #fff;
-}
-.tab i { font-size: .85rem; }
+.header-link:hover { background: var(--surface2); color: var(--text); }
 
 /* ----- Main ----- */
 .main {
@@ -102,9 +98,7 @@ a { color: var(--red); text-decoration: none; }
   min-height: calc(100vh - 60px);
 }
 
-/* ----- Tab panels ----- */
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
+/* ----- Single page (no tabs) ----- */
 
 /* ----- Hero ----- */
 .hero {
@@ -374,77 +368,81 @@ a { color: var(--red); text-decoration: none; }
 }
 
 /* =========================================================
-   TAB 2 – CROP
+   TRIM SECTION (inline in video card)
    ========================================================= */
 
-.crop-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  max-width: 820px;
-  margin: 0 auto;
+.trim-section {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
 }
 
-/* Drop zone */
-.drop-zone {
+/* Toggle switch */
+.trim-toggle {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 60px 40px;
-  border: 2px dashed var(--border);
-  border-radius: 16px;
+  gap: 12px;
   cursor: pointer;
-  transition: border-color var(--transition), background var(--transition);
-  text-align: center;
+  user-select: none;
 }
-.drop-zone.drag-over {
-  border-color: var(--red);
-  background: rgba(229,62,62,.06);
+.trim-toggle input { display: none; }
+
+.trim-toggle-slider {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: var(--surface2);
+  border-radius: 99px;
+  flex-shrink: 0;
+  transition: background var(--transition);
 }
-.drop-icon {
-  font-size: 3rem;
-  color: var(--muted);
-  margin-bottom: 4px;
+.trim-toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #666;
+  border-radius: 50%;
+  transition: transform var(--transition), background var(--transition);
 }
-.drop-zone p { color: var(--muted); }
-.drop-sub { font-size: .85rem; }
-.formats-hint {
-  font-size: .75rem;
-  color: #555;
-  margin-top: 4px;
+.trim-toggle input:checked + .trim-toggle-slider {
+  background: var(--red);
+}
+.trim-toggle input:checked + .trim-toggle-slider::after {
+  transform: translateX(18px);
+  background: #fff;
 }
 
-/* Crop editor */
-.crop-editor {
-  padding: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-.file-name {
-  font-size: .85rem;
+.trim-toggle-label {
+  font-size: .875rem;
+  font-weight: 500;
   color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+.trim-toggle-label i { color: var(--red); }
+
+.trim-controls {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: slideUp .25s ease;
 }
 
-/* Player */
-.player-wrap {
-  width: 100%;
-  background: #000;
-  border-radius: 10px;
-  overflow: hidden;
-  aspect-ratio: 16/9;
+.trim-hint {
+  font-size: .78rem;
+  color: var(--muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
-.crop-player {
-  width: 100%;
-  height: 100%;
-  display: block;
-  outline: none;
+.trim-hint i {
+  color: #76c5f8;
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 /* Range section */
@@ -550,27 +548,6 @@ a { color: var(--red); text-decoration: none; }
   text-align: center;
 }
 
-/* Crop format row */
-.crop-fmt-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.select-fmt {
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  color: var(--text);
-  font: inherit;
-  font-size: .9rem;
-  outline: none;
-  cursor: pointer;
-  transition: border-color var(--transition);
-  width: 100%;
-}
-.select-fmt:focus { border-color: var(--red); }
-
 /* =========================================================
    Features strip
    ========================================================= */
@@ -615,7 +592,4 @@ a { color: var(--red); text-decoration: none; }
 @media (max-width: 600px) {
   .hero { padding: 40px 16px 32px; }
   .info-panel { padding: 18px; }
-  .crop-editor { padding: 18px; }
-  .drop-zone { padding: 40px 20px; }
-  .tab span { display: none; }
 }

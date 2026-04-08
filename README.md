@@ -3,7 +3,7 @@
 Application web statique hébergée sur **GitHub Pages** qui permet de :
 
 - **Télécharger** des vidéos YouTube en **MP4** (1080p / 720p / 480p / 360p), **WebM**, **MP3**, **OGG**, **Opus**, **WAV**.
-- **Découper** (« cropper ») n'importe quel fichier vidéo ou audio localement dans le navigateur grâce à **FFmpeg.wasm** — sans aucun envoi de données vers un serveur.
+- **Découper** (« cropper ») un passage précis de la vidéo YouTube que l'on souhaite télécharger — la vidéo est d'abord récupérée puis découpée directement dans le navigateur grâce à **FFmpeg.wasm**, sans aucun envoi de données vers un serveur.
 
 ## Fonctionnalités
 
@@ -11,15 +11,15 @@ Application web statique hébergée sur **GitHub Pages** qui permet de :
 |---|---|
 | Multi-format | MP4, WebM, MP3, OGG, Opus, WAV |
 | Différentes qualités | 1080p, 720p, 480p, 360p |
-| Découpe précise | Slider double-poignée + champs de saisie de temps |
-| Prévisualisation | Lecteur HTML5 intégré (onglet Découpe) / embed YouTube (onglet Téléchargement) |
+| Découpe intégrée | Toggle « Découper un passage » avec slider double-poignée + champs de temps, directement sur la vidéo YouTube |
+| Prévisualisation | Embed YouTube intégré dans la carte vidéo |
 | Traitement local | FFmpeg.wasm single-threaded — aucune donnée envoyée |
 | Interface sombre | Design responsive, thème sombre avec accent rouge |
 
 ## Architecture
 
 ```
-index.html       ← page principale (2 onglets)
+index.html       ← page unique (URL → carte vidéo → format + trim → télécharger)
 css/style.css    ← styles
 js/app.js        ← logique de l'application
 ```
@@ -38,17 +38,13 @@ js/app.js        ← logique de l'application
 
 ## Usage
 
-### Onglet « Télécharger »
 1. Collez l'URL d'une vidéo YouTube.
 2. Cliquez sur **Analyser** — la miniature et le titre s'affichent.
-3. Choisissez le format souhaité dans la grille.
-4. Cliquez sur **Télécharger**.
-
-### Onglet « Découper »
-1. Glissez-déposez un fichier vidéo/audio (ou cliquez sur *Parcourir*).
-2. Utilisez le slider double-poignée ou les champs texte pour définir les temps de début et de fin.
-3. Choisissez le format de sortie.
-4. Cliquez sur **Découper & Télécharger** — FFmpeg traite le fichier dans votre navigateur.
+3. Choisissez le format souhaité dans la grille (MP4, WebM, MP3…).
+4. *(Optionnel)* Activez le toggle **Découper un passage** pour sélectionner un début et une fin avec le slider ou les champs texte.
+5. Cliquez sur **Télécharger** (ou **Découper & Télécharger** si la découpe est activée).
+   - Sans découpe : téléchargement direct via Cobalt.
+   - Avec découpe : la vidéo est d'abord téléchargée, puis découpée dans votre navigateur via FFmpeg.wasm, puis le fichier découpé est proposé au téléchargement.
 
 ## Licence
 

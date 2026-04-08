@@ -23,38 +23,25 @@
         <i class="fab fa-youtube logo-icon"></i>
         <span>YouDow</span>
       </div>
-      <nav class="tabs" role="tablist">
-        <button
-          class="tab active"
-          role="tab"
-          aria-selected="true"
-          data-tab="download"
-        >
+      <nav class="header-links">
+        <a href="#videoCard" class="header-link">
           <i class="fas fa-download"></i> Télécharger
-        </button>
-        <button
-          class="tab"
-          role="tab"
-          aria-selected="false"
-          data-tab="crop"
-        >
-          <i class="fas fa-cut"></i> Découper
-        </button>
+        </a>
       </nav>
     </div>
   </header>
 
   <main class="main">
     <!-- ========================================================= -->
-    <!-- TAB 1 – DOWNLOAD                                           -->
+    <!-- SINGLE PAGE FLOW                                           -->
     <!-- ========================================================= -->
-    <section id="tab-download" class="tab-panel active" role="tabpanel">
+
       <!-- Hero -->
       <div class="hero">
         <h1 class="hero-title">Téléchargez vos vidéos YouTube</h1>
         <p class="hero-subtitle">
           MP4&nbsp;·&nbsp;MP3&nbsp;·&nbsp;WebM&nbsp;·&nbsp;OGG&nbsp;·&nbsp;WAV&nbsp;·&nbsp;Opus
-          — choisissez votre format en un clic.
+          — choisissez votre format, découpez un passage et téléchargez en un clic.
         </p>
 
         <div class="search-box">
@@ -160,6 +147,77 @@
               </div>
             </div>
 
+            <!-- ===== Trim section (collapsible) ===== -->
+            <div class="trim-section">
+              <label class="trim-toggle" for="trimToggle">
+                <input type="checkbox" id="trimToggle" />
+                <span class="trim-toggle-slider"></span>
+                <span class="trim-toggle-label">
+                  <i class="fas fa-cut"></i> Découper un passage
+                </span>
+              </label>
+
+              <div id="trimControls" class="trim-controls hidden">
+                <div class="range-section">
+                  <div class="range-labels">
+                    <span>Début</span>
+                    <span id="rangeDisplay" class="range-display">0:00 → 0:00</span>
+                    <span>Fin</span>
+                  </div>
+                  <div class="dual-range" id="dualRange">
+                    <div class="track">
+                      <div id="trackFill" class="track-fill"></div>
+                    </div>
+                    <input
+                      type="range"
+                      id="sliderStart"
+                      class="thumb thumb-start"
+                      min="0"
+                      max="1000"
+                      value="0"
+                    />
+                    <input
+                      type="range"
+                      id="sliderEnd"
+                      class="thumb thumb-end"
+                      min="0"
+                      max="1000"
+                      value="1000"
+                    />
+                  </div>
+
+                  <div class="time-inputs">
+                    <div class="time-field">
+                      <label for="startInput">Début</label>
+                      <input
+                        type="text"
+                        id="startInput"
+                        class="time-input"
+                        value="0:00"
+                        placeholder="0:00"
+                      />
+                    </div>
+                    <div class="time-field" style="text-align:right">
+                      <label for="endInput">Fin</label>
+                      <input
+                        type="text"
+                        id="endInput"
+                        class="time-input"
+                        value="0:00"
+                        placeholder="0:00"
+                      />
+                    </div>
+                  </div>
+                  <p id="cropSelInfo" class="crop-sel-info">Sélection : --</p>
+                </div>
+
+                <p class="trim-hint">
+                  <i class="fas fa-info-circle"></i>
+                  La vidéo sera téléchargée puis découpée dans votre navigateur via FFmpeg.wasm.
+                </p>
+              </div>
+            </div>
+
             <!-- Download button -->
             <button id="downloadBtn" class="btn btn-download">
               <i class="fas fa-download"></i>
@@ -178,135 +236,6 @@
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- ========================================================= -->
-    <!-- TAB 2 – CROP                                               -->
-    <!-- ========================================================= -->
-    <section id="tab-crop" class="tab-panel" role="tabpanel">
-      <div class="hero hero-small">
-        <h1 class="hero-title">Découpez une vidéo</h1>
-        <p class="hero-subtitle">
-          Importez n'importe quel fichier vidéo ou audio, choisissez le passage
-          à conserver et téléchargez le résultat via&nbsp;FFmpeg.wasm — tout se
-          passe <strong>dans votre navigateur</strong>, sans envoi de données.
-        </p>
-      </div>
-
-      <div class="crop-card">
-        <!-- Upload zone -->
-        <div id="dropZone" class="drop-zone">
-          <i class="fas fa-cloud-upload-alt drop-icon"></i>
-          <p>Glissez-déposez un fichier vidéo / audio ici</p>
-          <p class="drop-sub">ou</p>
-          <label class="btn btn-secondary" for="fileInput">
-            <i class="fas fa-folder-open"></i> Parcourir…
-          </label>
-          <input
-            type="file"
-            id="fileInput"
-            accept="video/*,audio/*"
-            hidden
-          />
-          <p class="drop-sub formats-hint">
-            MP4&nbsp;· MKV&nbsp;· WebM&nbsp;· MOV&nbsp;· AVI&nbsp;· MP3&nbsp;· WAV&nbsp;· OGG&nbsp;…
-          </p>
-        </div>
-
-        <!-- Crop editor (hidden until file selected) -->
-        <div id="cropEditor" class="crop-editor hidden">
-          <p id="cropFileName" class="file-name"></p>
-
-          <!-- Video preview player -->
-          <div class="player-wrap">
-            <video id="cropPlayer" class="crop-player" controls preload="metadata"></video>
-          </div>
-
-          <!-- Time range controls -->
-          <div class="range-section">
-            <div class="range-labels">
-              <span>Début</span>
-              <span id="rangeDisplay" class="range-display">0:00 → 0:00</span>
-              <span>Fin</span>
-            </div>
-            <div class="dual-range" id="dualRange">
-              <div class="track">
-                <div id="trackFill" class="track-fill"></div>
-              </div>
-              <input
-                type="range"
-                id="sliderStart"
-                class="thumb thumb-start"
-                min="0"
-                max="1000"
-                value="0"
-              />
-              <input
-                type="range"
-                id="sliderEnd"
-                class="thumb thumb-end"
-                min="0"
-                max="1000"
-                value="1000"
-              />
-            </div>
-
-            <div class="time-inputs">
-              <div class="time-field">
-                <label for="startInput">Début</label>
-                <input
-                  type="text"
-                  id="startInput"
-                  class="time-input"
-                  value="0:00"
-                  placeholder="0:00"
-                />
-              </div>
-              <div class="time-field" style="text-align:right">
-                <label for="endInput">Fin</label>
-                <input
-                  type="text"
-                  id="endInput"
-                  class="time-input"
-                  value="0:00"
-                  placeholder="0:00"
-                />
-              </div>
-            </div>
-            <p id="cropSelInfo" class="crop-sel-info">Sélection : --</p>
-          </div>
-
-          <!-- Output format for crop -->
-          <div class="crop-fmt-row">
-            <label for="cropFmt" class="section-label">Format de sortie</label>
-            <select id="cropFmt" class="select-fmt">
-              <option value="mp4">MP4</option>
-              <option value="webm">WebM</option>
-              <option value="mkv">MKV</option>
-              <option value="mp3">MP3 (audio)</option>
-              <option value="wav">WAV (audio)</option>
-              <option value="ogg">OGG (audio)</option>
-            </select>
-          </div>
-
-          <!-- Process button -->
-          <button id="cropBtn" class="btn btn-download">
-            <i class="fas fa-cut"></i>
-            <span>Découper &amp; Télécharger</span>
-          </button>
-
-          <!-- Progress -->
-          <div id="cropProgress" class="progress-wrap hidden">
-            <div class="progress-bar">
-              <div id="cropBar" class="progress-fill" style="width:0%"></div>
-            </div>
-            <p id="cropStatus" class="progress-label">Chargement de FFmpeg…</p>
-          </div>
-
-          <p id="cropMsg" class="status-msg" aria-live="polite"></p>
-        </div>
-      </div>
-    </section>
   </main>
 
   <!-- ===== ABOUT / FEATURES STRIP ===== -->
