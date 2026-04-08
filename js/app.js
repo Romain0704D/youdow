@@ -130,12 +130,15 @@ const DEFAULT_JWT_LIFETIME_S = 1800;  /* 30 min fallback if server omits exp */
 const JWT_EXPIRY_BUFFER_MS   = 30000; /* refresh 30 s before actual expiry */
 const AUTH_TIMEOUT_MS         = 30000; /* max wait for Turnstile + JWT exchange */
 
+const AUTH_MAX_RETRIES = 1; /* retry Turnstile challenge once before giving up */
+
 const _cobaltAuth = {
   sitekey: null,
   jwt: null,
   expiry: 0,
   widgetId: null,
   _resolve: null,
+  _initPromise: null, /* tracks initCobaltAuth() so ensureCobaltJwt() can await it */
 };
 
 /** Fetch Cobalt instance info and set up Turnstile if required. */
@@ -177,10 +180,21 @@ function _renderTurnstile() {
     callback: _onTurnstileDone,
     'error-callback': () => {
       console.warn('[YouDow] Turnstile challenge error');
+      /* Unblock any caller waiting on ensureCobaltJwt() so it fails fast
+         instead of waiting for the full AUTH_TIMEOUT_MS. */
+      if (_cobaltAuth._resolve) {
+        _cobaltAuth._resolve();
+        _cobaltAuth._resolve = null;
+      }
     },
     'expired-callback': () => {
       _cobaltAuth.jwt = null;
       _cobaltAuth.expiry = 0;
+      /* If someone is waiting for a JWT, unblock them so they can retry. */
+      if (_cobaltAuth._resolve) {
+        _cobaltAuth._resolve();
+        _cobaltAuth._resolve = null;
+      }
     },
   });
 }
@@ -216,12 +230,40 @@ async function _onTurnstileDone(token) {
 /**
  * Return a valid JWT for Cobalt, refreshing via Turnstile if needed.
  * Returns null if the instance does not require authentication.
+ * Retries the Turnstile challenge up to AUTH_MAX_RETRIES times before giving up.
  */
 async function ensureCobaltJwt() {
+  /* Wait for initCobaltAuth() to finish loading Turnstile before we attempt anything */
+  if (_cobaltAuth._initPromise) {
+    await _cobaltAuth._initPromise;
+  }
+
   if (!_cobaltAuth.sitekey) return null;
   if (_cobaltAuth.jwt && Date.now() < _cobaltAuth.expiry) return _cobaltAuth.jwt;
 
-  /* Refresh: reset Turnstile to trigger a new challenge */
+  let lastErr = null;
+
+  for (let attempt = 0; attempt <= AUTH_MAX_RETRIES; attempt++) {
+    try {
+      const jwt = await _requestTurnstileJwt();
+      return jwt;
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[YouDow] Auth attempt ${attempt + 1} failed:`, e.message);
+    }
+  }
+
+  throw lastErr || new Error(
+    'Authentification impossible. Veuillez actualiser la page et réessayer.'
+  );
+}
+
+/**
+ * Single attempt to obtain a JWT via Turnstile challenge.
+ * Resets the widget, waits for the callback, and resolves/rejects.
+ */
+function _requestTurnstileJwt() {
+  /* Reset: invalidate any stale JWT and trigger a fresh Turnstile challenge */
   _cobaltAuth.jwt = null;
   if (_cobaltAuth.widgetId !== null && typeof turnstile !== 'undefined') {
     turnstile.reset(_cobaltAuth.widgetId);
@@ -711,4 +753,4 @@ downloadBtn.addEventListener('click', async () => {
 /* =========================================================
    Bootstrap: start Cobalt auth in the background
    ========================================================= */
-initCobaltAuth();
+_cobaltAuth._initPromise = initCobaltAuth();
