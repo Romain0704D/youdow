@@ -130,7 +130,8 @@ const DEFAULT_JWT_LIFETIME_S = 1800;  /* 30 min fallback if server omits exp */
 const JWT_EXPIRY_BUFFER_MS   = 30000; /* refresh 30 s before actual expiry */
 const AUTH_TIMEOUT_MS         = 30000; /* max wait for Turnstile + JWT exchange */
 
-const AUTH_MAX_RETRIES = 1; /* retry Turnstile challenge once before giving up */
+const AUTH_MAX_RETRIES = 2; /* up to 2 extra attempts (3 total) before giving up */
+const AUTH_RETRY_DELAY_MS = 1000; /* wait between retries to let Turnstile recover */
 
 const _cobaltAuth = {
   sitekey: null,
@@ -244,6 +245,9 @@ async function ensureCobaltJwt() {
   let lastErr = null;
 
   for (let attempt = 0; attempt <= AUTH_MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, AUTH_RETRY_DELAY_MS));
+    }
     try {
       const jwt = await _requestTurnstileJwt();
       return jwt;
@@ -263,17 +267,10 @@ async function ensureCobaltJwt() {
  * Resets the widget, waits for the callback, and resolves/rejects.
  */
 function _requestTurnstileJwt() {
-  /* Reset: invalidate any stale JWT and trigger a fresh Turnstile challenge */
+  /* Reset: invalidate any stale JWT */
   _cobaltAuth.jwt = null;
-  if (_cobaltAuth.widgetId !== null && typeof turnstile !== 'undefined') {
-    turnstile.reset(_cobaltAuth.widgetId);
-  }
 
   return new Promise((resolve, reject) => {
-    if (_cobaltAuth.jwt && Date.now() < _cobaltAuth.expiry) {
-      return resolve(_cobaltAuth.jwt);
-    }
-
     const tmr = setTimeout(() => {
       _cobaltAuth._resolve = null;
       reject(new Error(
@@ -286,9 +283,15 @@ function _requestTurnstileJwt() {
       if (_cobaltAuth.jwt) {
         resolve(_cobaltAuth.jwt);
       } else {
-        reject(new Error('Authentification échouée. Veuillez réessayer.'));
+        reject(new Error('Authentification échouée'));
       }
     };
+
+    /* Trigger a fresh Turnstile challenge AFTER _resolve is wired up,
+       so the callback can never fire before we are ready to handle it. */
+    if (_cobaltAuth.widgetId !== null && typeof turnstile !== 'undefined') {
+      turnstile.reset(_cobaltAuth.widgetId);
+    }
   });
 }
 
@@ -621,7 +624,9 @@ downloadBtn.addEventListener('click', async () => {
       const jwt = await ensureCobaltJwt();
       if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
     } catch (authErr) {
-      throw new Error(authErr.message);
+      const err = new Error(authErr.message);
+      err._isAuthError = true;
+      throw err;
     }
 
     const res = await fetch(COBALT_API, {
@@ -639,7 +644,9 @@ downloadBtn.addEventListener('click', async () => {
         /* Auth error → invalidate cached JWT so next attempt refreshes */
         _cobaltAuth.jwt = null;
         _cobaltAuth.expiry = 0;
-        throw new Error('Session expirée. Veuillez réessayer.');
+        const authErr = new Error('Session expirée');
+        authErr._isAuthError = true;
+        throw authErr;
       }
       throw new Error(
         code || 'Le serveur de téléchargement a renvoyé une erreur.'
@@ -741,10 +748,17 @@ downloadBtn.addEventListener('click', async () => {
   } catch (err) {
     dlProgress.classList.add('hidden');
     console.error('[YouDow Download]', err);
-    setDlMsg(
-      `Erreur : ${err.message}. Vérifiez que l'URL est correcte et que la vidéo est publique.`,
-      'error'
-    );
+    if (err._isAuthError) {
+      setDlMsg(
+        `Erreur : ${err.message}. Veuillez actualiser la page et réessayer.`,
+        'error'
+      );
+    } else {
+      setDlMsg(
+        `Erreur : ${err.message}. Vérifiez que l'URL est correcte et que la vidéo est publique.`,
+        'error'
+      );
+    }
   } finally {
     downloadBtn.disabled = false;
   }
